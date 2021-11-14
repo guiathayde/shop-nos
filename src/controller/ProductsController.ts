@@ -3,12 +3,13 @@ import { Request, Response } from 'express';
 import { categoriesAllowed, ProductModel } from '../model/Product';
 
 export async function createProduct(request: Request, response: Response) {
-  const { name, price, category } = request.body;
+  const { name, price, category } = JSON.parse(request.body.data);
+  const fileName = request.file.filename;
 
-  if (!name || !price || !category) {
+  if (!name || !price || !category || !fileName) {
     return response
       .status(403)
-      .json({ error: 'Nome, preço ou categoria vazia.' });
+      .json({ error: 'Nome, preço, categoria ou imagem vazia.' });
   }
 
   if (!categoriesAllowed.includes(category)) {
@@ -19,6 +20,7 @@ export async function createProduct(request: Request, response: Response) {
     name,
     price,
     category,
+    imageURL: `${process.env.API_URL}/images/${fileName}`,
   });
   await product.save();
 
@@ -27,16 +29,31 @@ export async function createProduct(request: Request, response: Response) {
 
 export async function updateProduct(request: Request, response: Response) {
   const { id } = request.params;
-  const { name, price, category } = request.body;
+  const { name, price, category } = JSON.parse(request.body.data);
+  const fileName = request.file ? request.file.filename : false;
 
-  if (!categoriesAllowed.includes(category)) {
-    return response.status(403).json({ error: 'Categoria não não permitida.' });
+  let product;
+  if (name) {
+    product = await ProductModel.updateOne({ _id: id }, { name });
   }
+  if (price) {
+    product = await ProductModel.updateOne({ _id: id }, { price });
+  }
+  if (category) {
+    if (!categoriesAllowed.includes(category)) {
+      return response
+        .status(403)
+        .json({ error: 'Categoria não não permitida.' });
+    }
 
-  const product = await ProductModel.updateOne(
-    { _id: id },
-    { name, price, category },
-  );
+    product = await ProductModel.updateOne({ _id: id }, { category });
+  }
+  if (fileName) {
+    product = await ProductModel.updateOne(
+      { _id: id },
+      { imageURL: `${process.env.API_URL}/images/${fileName}` },
+    );
+  }
 
   return response.status(204).json(product);
 }
